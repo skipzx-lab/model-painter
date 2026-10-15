@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Model Painter</title>
+  </head>
+  <body>
+    <aside id="panel">
+      <header>
+        <h1>Model Painter</h1>
+        <div class="row">
+          <label class="btn primary">Open model<input id="file" type="file" accept=".stl,.obj,.3mf,.ply,.glb,.gltf" hidden /></label>
+          <button id="export" disabled>Export 3MF</button>
+        </div>
+        <div id="stats" class="muted">STL, OBJ, 3MF, PLY or GLB. Drop a file anywhere.</div>
+      </header>
+
+      <section>
+        <h2>Filaments <span class="muted">(slot = extruder)</span></h2>
+        <ol id="filaments"></ol>
+        <div class="row">
+          <button id="add-filament">+ Add filament</button>
+          <button id="paint-all" title="Paint the whole model with the active filament">Fill all</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Tools</h2>
+        <div class="seg" id="tools">
+          <button data-tool="orbit" title="Orbit (O)">Orbit</button>
+          <button data-tool="brush" title="Brush (B)">Brush</button>
+          <button data-tool="crease" title="Fill a region bounded by sharp edges (F)">Smart fill</button>
+          <button data-tool="bucket" title="Fill connected faces of the same colour (G)">Bucket</button>
+          <button data-tool="thin" title="Fill a thin part (spike, claw, horn, tooth) up to where it thickens into the body (T)">Thin fill</button>
+          <button data-tool="rule" title="Click a body segment: colours its spikes (everything high or far out) on it and every same-shaped segment (S)">Spike fill</button>
+          <button data-tool="copy" title="Click a painted part (e.g. one body segment) to copy its paint onto every matching part (C)">Copy part</button>
+          <button data-tool="patch" title="Fill one AI region (P)">Region</button>
+        </div>
+        <label>Brush size <input id="brush-size" type="range" min="0.2" max="30" step="0.1" value="3" /><span id="brush-size-v"></span> mm</label>
+        <label>Smart fill angle <input id="crease-angle" type="range" min="5" max="80" step="1" value="30" /><span id="crease-angle-v"></span>°</label>
+        <label>Spike fill: above height <input id="rule-height" type="range" min="30" max="98" step="1" value="72" /><span id="rule-height-v"></span>%</label>
+        <label>Spike fill: beyond reach <input id="rule-reach" type="range" min="30" max="98" step="1" value="70" /><span id="rule-reach-v"></span>%</label>
+        <label>Spike fill: spine stripe width <input id="rule-stripe" type="range" min="0" max="40" step="1" value="0" /><span id="rule-stripe-v"></span>% (0 = none)</label>
+        <label>Thin fill max thickness <input id="thin-max" type="range" min="0.5" max="15" step="0.1" value="4" /><span id="thin-max-v"></span> mm</label>
+        <div class="row"><button id="thin-preview" title="Highlight everything thinner than the max thickness">Preview thin parts</button><label class="check"><input id="thin-similar" type="checkbox" /> Thin fill paints all similar parts</label></div>
+        <label class="check"><input id="front-only" type="checkbox" checked /> Brush front faces only</label>
+        <p class="muted small">Painting tools: left-drag paints, right-drag orbits, middle pans. Ctrl+Z / Ctrl+Y undo/redo. Number keys pick a filament.</p>
+      </section>
+
+      <section>
+        <h2>Mesh</h2>
+        <label>Paint detail (max edge) <input id="refine-edge" type="number" min="0.1" step="0.1" value="1.5" /> mm</label>
+        <div class="row">
+          <button id="refine">Subdivide</button>
+          <button id="despeckle" title="Merge tiny colour islands into their surroundings">Clean specks</button>
+          <input id="speck-area" type="number" min="0" step="0.5" value="4" title="Minimum island area (mm²)" />
+        </div>
+      </section>
+
+      <section>
+        <h2>AI</h2>
+        <label>Model <select id="provider"></select></label>
+        <div id="ref-drop" class="drop">
+          <img id="ref-img" alt="" hidden />
+          <span id="ref-hint">Drop a reference image here (or click)</span>
+          <input id="ref-file" type="file" accept="image/*" hidden />
+        </div>
+        <div class="row" id="ref-tools" hidden>
+          <button id="ref-suggest">Suggest filaments</button>
+          <button id="ref-clear">Remove</button>
+        </div>
+        <div id="ref-swatches"></div>
+        <details>
+          <summary class="muted small">Quick region paint (one shot)</summary>
+          <div class="row">
+            <button id="show-patches">Show regions</button>
+            <button id="ai-paint" disabled>Paint regions</button>
+            <button id="ai-refine" disabled title="Show the AI its result and let it fix mistakes">Refine</button>
+          </div>
+          <label>Regions <input id="patch-count" type="range" min="60" max="500" step="10" value="250" /><span id="patch-count-v"></span></label>
+          <label class="check"><input id="detail-pass" type="checkbox" checked /> Close-up pass for small details (eyes, teeth)</label>
+          <label>Detail regions <input id="detail-count" type="number" min="30" max="400" step="10" value="150" /></label>
+        </details>
+        <div id="ai-status" class="muted small"></div>
+        <details id="ai-details" hidden>
+          <summary>What the AI saw / said</summary>
+          <p id="ai-plan"></p>
+          <div id="ai-views"></div>
+        </details>
+      </section>
+    </aside>
+    <main id="view"><div id="drop-hint" class="muted">Open a model to start</div></main>
+    <aside id="chat">
+      <header class="chat-head">
+        <h2>Painter chat</h2>
+        <span id="chat-cost" class="muted small"></span>
+        <button id="chat-new" class="small" title="Start a fresh conversation (keeps the current paint)">New chat</button>
+      </header>
+      <img id="agent-img" alt="" hidden title="What the painter is looking at" />
+      <div id="chat-log">
+        <div class="msg sys">Describe the look you want, e.g. <em>"Make me a poison dragon. Green spikes growing from his black body, a yellow eye with the darkest black pupil, bone white teeth."</em> Then ask for changes the same way.</div>
+      </div>
+      <div id="chat-status" class="muted small"></div>
+      <div class="chat-input">
+        <textarea id="chat-input" rows="3" placeholder="Message the painter… (Enter to send, Shift+Enter for a new line)"></textarea>
+        <div class="row">
+          <button id="chat-send" class="primary" disabled>Send</button>
+          <button id="chat-stop" hidden>Stop</button>
+        </div>
+      </div>
+    </aside>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

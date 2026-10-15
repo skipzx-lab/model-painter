@@ -1,0 +1,9 @@
+local.env
+.env
+.venv/
+__pycache__/
+node_modules/
+frontend/dist/
+runs/
+*.3mf
+*.log
